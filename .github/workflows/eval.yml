@@ -1,0 +1,98 @@
+name: eval
+
+# Runs on every PR (and pushes to main) and fails the build if retrieval or
+# answer-quality metrics regress below the stored baseline in
+# eval/baseline.json — see eval/check_regression.py.
+#
+# IMPORTANT / HONESTY NOTE: this workflow does NOT exercise the real
+# Ollama-backed generation path. Typical GitHub-hosted runners have no GPU
+# and no pre-pulled multi-gigabyte model, so running a real local LLM here
+# would be slow, flaky, and not representative of a genuine CI gate. Instead
+# this workflow sets CI=true, which makes rag_core.answer_question() use a
+# small deterministic, dependency-free "stub" generator (see
+# rag_core.generate_stub) that template-joins the retrieved chunk text
+# instead of calling an LLM. That keeps the parts this CI job is actually
+# meant to validate deterministic and fast:
+#   - the embedding model loads and produces real vectors
+#   - Qdrant ingestion and retrieval work end-to-end against a live Qdrant
+#   - the eval scoring + MLflow logging + regression-gate mechanics are
+#     exercised with real (not mocked) retrieval results
+#
+# What this workflow does NOT validate: real Ollama generation quality,
+# prompt-to-answer behavior with an actual LLM, or the Dockerfile/
+# docker-compose stack. Those require the developer's local machine with
+# Ollama running — see README "What CI validates vs. what requires local
+# Ollama" for the full breakdown.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  eval-gate:
+    runs-on: ubuntu-latest
+
+    services:
+      qdrant:
+        image: qdrant/qdrant:latest
+        ports:
+          - 6333:6333
+          - 6334:6334
+        options: >-
+          --health-cmd "wget -q --spider http://localhost:6333/healthz || exit 1"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      CI: "true"
+      QDRANT_URL: "http://localhost:6333"
+      QDRANT_COLLECTION: "rag_docs"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+
+      - name: Wait for Qdrant
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:6333/healthz > /dev/null; then
+              echo "Qdrant is up"; exit 0
+            fi
+            echo "waiting for qdrant... ($i)"; sleep 2
+          done
+          echo "Qdrant did not become healthy in time" >&2
+          exit 1
+
+      - name: Ingest sample corpus into Qdrant
+        run: python ingest.py
+
+      - name: Run eval suite (CI stub generator — see note above)
+        run: python eval/run_eval.py --top-k 5
+
+      - name: Check for quality regression vs. baseline
+        run: python eval/check_regression.py
+
+      - name: Run unit tests
+        run: python -m pytest tests/ -v
+
+      - name: Upload eval artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-results
+          path: |
+            eval/results/latest.json
+            eval/results/per_question.json
+            mlruns/

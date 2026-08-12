@@ -1,0 +1,8 @@
+{
+  "_comment": "Stored known-good baseline for eval/check_regression.py. Captured from a real run of eval/run_eval.py (generator=stub, top_k=5) against the sample_docs corpus ingested into a live Qdrant instance. To move this forward after a verified improvement: run eval/run_eval.py, review eval/results/latest.json, then copy its retrieval_recall_at_k / answer_quality_avg / n_questions values in here and commit.",
+  "generator": "stub",
+  "top_k": 5,
+  "retrieval_recall_at_k": 1.0,
+  "answer_quality_avg": 0.9583,
+  "n_questions": 12
+}

@@ -1,0 +1,12 @@
+[project]
+name = "rag-mlops-pipeline"
+version = "0.1.0"
+description = "RAG service (Qdrant + Ollama + BentoML) with MLflow eval tracking and a CI regression gate."
+requires-python = ">=3.10"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Shipra Rathore" }]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
