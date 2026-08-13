@@ -68,7 +68,16 @@ RAG_REQUESTS_TOTAL = Counter(
     "rag_requests_total", "Total /query requests, labeled by outcome status.", ["status"]
 )
 RAG_REQUEST_LATENCY_SECONDS = Histogram(
-    "rag_request_latency_seconds", "End-to-end /query latency in seconds."
+    "rag_request_latency_seconds",
+    "End-to-end /query latency in seconds.",
+    # prometheus_client's DEFAULT buckets top out at 10s (a web-API assumption) and
+    # dump anything slower straight into +Inf, which makes histogram_quantile clamp
+    # p95/p99 at 10s regardless of the real value — a 3.5s and a 31s request become
+    # indistinguishable. LLM generation routinely runs 5-60s+ on CPU, so the buckets
+    # need to actually span that range. Found by running this against a live Ollama
+    # backend, not guessed: a real 31s request and a real 3.5s request both read
+    # "p99 10s" in Grafana before this fix.
+    buckets=(0.5, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, float("inf")),
 )
 RAG_RETRIEVAL_SCORE = Histogram(
     "rag_retrieval_score",
