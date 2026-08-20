@@ -54,12 +54,12 @@ flowchart LR
     end
 
     subgraph EvalHarness["eval/ harness"]
-        Testset[("eval/testset.jsonl\n12 Q/A/source triples")] --> RunEval[eval/run_eval.py]
+        Testset[("eval/testset.jsonl\n12 Q/A/source triples")] --> RunEval["eval/run_eval.py"]
         RunEval --> R
-        RunEval --> Score[eval/scoring.py\nrecall@k + answer quality]
+        RunEval --> Score["eval/scoring.py\nrecall@k + answer quality"]
         Score --> MLflow[(MLflow\n./mlruns file store)]
         Score --> Results[("eval/results/latest.json")]
-        Results --> Gate[eval/check_regression.py]
+        Results --> Gate["eval/check_regression.py"]
         Baseline[("eval/baseline.json")] --> Gate
         Gate -->|regressed| Fail["exit 1 — CI FAILS"]
         Gate -->|OK| Pass["exit 0 — CI PASSES"]
